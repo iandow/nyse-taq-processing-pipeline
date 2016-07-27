@@ -15,20 +15,6 @@ public class Consumer {
     // Declare a new consumer.
     public static KafkaConsumer consumer;
 
-    private class Trade {
-        Date date;
-        String exchange;
-        String symbol;
-        String saleCondition;
-        Integer tradeVolume;
-        String tradePrice;
-        String tradeStopStockIndicator;
-        String tradeCorrectionIndicator;
-        String tradeSequenceNumber;
-        String tradeSource;
-        String tradeReportingFacility;
-    }
-
     private static JSONObject parse(String record) {
         if (record.length() < 71) {
             System.err.println("ERROR: Expected line to be at least 71 characters, but got " + record.length());
