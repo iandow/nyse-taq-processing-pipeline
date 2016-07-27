@@ -20,6 +20,7 @@ $ maprcli stream create -path /user/mapr/taq -produceperm p -consumeperm p -topi
 
 In that command we created the topic with public permission since we want to be able to run producers and consumers from remote computers.
 
+
 ### Step 2: Create the topics
 
 We only need one topic for this program. Topics are also created with the `maprcli` tool.
@@ -36,15 +37,6 @@ topic            partitions  logicalsize  consumers  maxlag  physicalsize
 trades           1           0            0          0       0
 ```
 
-### Monitoring your topics 
-
-At any time you can use the `maprcli` tool to get some information about the topic, for example:
-
-```
-$ maprcli stream info -path /user/mapr/taq -json
-$ maprcli stream topic info -path /user/mapr/taq -topic trades -json
-```
-
 ### Step 3: Compile and package up the example programs
 
 Go back to the root directory where you have saved this source code and
@@ -57,6 +49,7 @@ $ mvn package
 ```
 
 The project create a jar with all external dependencies ( `./target/nyse-taq-streaming-1.0-jar-with-dependencies.jar` )
+
 
 ### Step 4: Run the Producer
 
@@ -91,7 +84,6 @@ Sent msg number 999000
 The command-line argument `data/taqtrade20131218` refers to the source file containing the TAQ dataset to be published into the `taq:trades` MapR stream.
 
 
-
 ### Step 5: Start the Consumer
 
 In another window you can run the consumer using the following command:
@@ -107,4 +99,22 @@ Sent msg number 1000
 ...
 Sent msg number 998000
 Sent msg number 999000
+```
+
+
+### Monitoring your topics 
+
+You can use the `maprcli` tool to get some information about the topic, for example:
+
+```
+$ maprcli stream info -path /user/mapr/taq -json
+$ maprcli stream topic info -path /user/mapr/taq -topic trades -json
+```
+
+
+## Cleaning Up
+
+When you are done, you can delete the stream, and all associated topic using the following command:
+```
+$ maprcli stream delete -path /taq
 ```
