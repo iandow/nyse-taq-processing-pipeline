@@ -51,9 +51,8 @@ public class Producer {
                     producer.flush();
                     Monitor.print_status(records_processed,startTime);
                 }
+                line = reader.readLine();
             }
-
-            line = reader.readLine();
 
         } catch (Throwable throwable) {
             System.err.printf("%s", throwable.getStackTrace());
