@@ -74,6 +74,7 @@ The producer will send a large number of messages to `/taq:trades`. Since there 
 any consumer running yet, nobody will receive the messages. 
 
 Then run the Producer like this:
+
 ```java -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]```
 
 For example,
