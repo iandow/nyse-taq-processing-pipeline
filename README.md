@@ -75,7 +75,7 @@ any consumer running yet, nobody will receive the messages.
 
 Then run the Producer like this:
 
-`java -cp \`mapr classpath\`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]`
+`java -cp ``mapr classpath``:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]`
 
 ```
 $ java -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer data/taqtrade20131218 /usr/mapr/taq:trades 
@@ -94,7 +94,7 @@ The command-line argument `data/taqtrade20131218` refers to the source file cont
 
 In another window you can run the consumer using the following command:
 
-`java -cp \`mapr classpath\`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer [stream:topic]`
+`java -cp ``mapr classpath``:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer [stream:topic]`
 
 
 ```
