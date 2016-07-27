@@ -1,13 +1,11 @@
-/* Copyright (c) 2009 & onwards. MapR Tech, Inc., All rights reserved */
+package com.mapr.examples;/* Copyright (c) 2009 & onwards. MapR Tech, Inc., All rights reserved */
 
+import java.text.ParseException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-
-
-import java.io.IOException;
 import java.util.*;
 
 public class Consumer {
@@ -15,10 +13,9 @@ public class Consumer {
     // Declare a new consumer.
     public static KafkaConsumer consumer;
 
-    private static JSONObject parse(String record) {
+    private static JSONObject parse(String record) throws ParseException {
         if (record.length() < 71) {
-            System.err.println("ERROR: Expected line to be at least 71 characters, but got " + record.length());
-            return null;
+            throw new ParseException("Expected line to be at least 71 characters, but got " + record.length(), record.length());
         }
 
         JSONObject trade_info = new JSONObject();
@@ -34,12 +31,12 @@ public class Consumer {
         trade_info.put("tradeSequenceNumber", record.substring(53, 69));
         trade_info.put("tradeSource", record.substring(69, 70));
         trade_info.put("tradeReportingFacility", record.substring(70, 71));
-        if (record.length() > 71) {
+        if (record.length() >= 74) {
             trade_info.put("sender", record.substring(71, 75));
 
             JSONArray receiver_list = new JSONArray();
             int i = 0;
-            while (record.length() > 75 + i) {
+            while (record.length() >= 78 + i) {
                 receiver_list.add(record.substring(75 + i, 79 + i));
                 i += 4;
             }
@@ -49,10 +46,14 @@ public class Consumer {
 
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         Runtime runtime = Runtime.getRuntime();
-        if (args.length < 1) {
-            throw new IllegalArgumentException("You must specify the topic, for example /user/user01/pump:sensor ");
+        if (args.length < 2) {
+            System.err.println("Usage:\n" +
+                    "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer [stream:topic]\n" +
+                    "Example:\n" +
+                    "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer  /usr/mapr/taq:trades");
+            throw new IllegalArgumentException("ERROR: You must specify a stream:topic to consume data from.");
         }
 
         String topic =  args[0] ;
@@ -99,11 +100,13 @@ public class Consumer {
                     // Print performance stats
                     long endTime = System.nanoTime();
                     long elapsedTime = endTime - startTime;
-                    System.out.format("Throughput = %.0f Kmsgs/sec consumed. Total consumed = %d, Free Memory = %d MB\n", records_processed / ((double) elapsedTime / 1000000000.0) / 1000.0, records_processed, runtime.freeMemory() / (1024 * 1024));
+                    System.out.printf("Throughput = %.0f Kmsgs/sec consumed. Total consumed = %d, Free Memory = %d MB\n", records_processed / ((double) elapsedTime / 1000000000.0) / 1000.0, records_processed, runtime.freeMemory() / (1024 * 1024));
 
                 }
 
             }
+        } catch (Throwable throwable) {
+            System.err.printf("%s", throwable.getStackTrace());
         } finally {
             consumer.close();
             System.out.println("Consumed " + records_processed + " messages from stream.");
