@@ -49,14 +49,15 @@ public class Consumer {
     public static void main(String[] args) {
         Runtime runtime = Runtime.getRuntime();
         if (args.length < 2) {
-            System.err.println("Usage:\n" +
+            System.err.println("ERROR: You must specify a stream:topic to consume data from.");
+            System.err.println("USAGE:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer [stream:topic]\n" +
                     "Example:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer  /usr/mapr/taq:trades");
-            throw new IllegalArgumentException("ERROR: You must specify a stream:topic to consume data from.");
+
         }
 
-        String topic =  args[0] ;
+        String topic =  args[1] ;
         System.out.println("Subscribed to : "+ topic);
 
         configureConsumer();
@@ -76,6 +77,8 @@ public class Consumer {
         // TODO: Is it okay for the listener #1 to potentially persist duplicate messages?
 
         long startTime = System.nanoTime();
+        long last_update = 0;
+
         try {
             while (true) {
                 // Request unread messages from the topic.
@@ -97,10 +100,11 @@ public class Consumer {
                     }
                     records_processed += records.count();
 
-                    // Print performance stats
-                    long endTime = System.nanoTime();
-                    long elapsedTime = endTime - startTime;
-                    System.out.printf("Throughput = %.0f Kmsgs/sec consumed. Total consumed = %d, Free Memory = %d MB\n", records_processed / ((double) elapsedTime / 1000000000.0) / 1000.0, records_processed, runtime.freeMemory() / (1024 * 1024));
+                    // Print performance stats once per second
+                    if ((Math.floor(System.nanoTime() - startTime)/1e9) > last_update) {
+                        last_update++;
+                        Monitor.print_status(records_processed, startTime);
+                    }
 
                 }
 

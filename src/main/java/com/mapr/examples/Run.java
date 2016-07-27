@@ -9,10 +9,9 @@ import java.io.IOException;
 public class Run {
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
-            System.err.println("Usage:\n" +
+            System.err.println("USAGE:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run consumer [stream:topic]\n");
-            throw new IllegalArgumentException("Must have either 'producer', 'consumer' as argument");
         }
         switch (args[0]) {
             case "producer":

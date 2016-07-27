@@ -14,46 +14,52 @@ public class Producer {
 
     public static void main(String[] args) throws IOException {
         if (args.length < 3) {
-            System.err.println("Usage:\n" +
+            System.err.println("ERROR: You must specify the input data file and stream:topic.");
+            System.err.println("USAGE:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]\n" +
                     "Example:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer data/taqtrade20131218 /usr/mapr/taq:trades");
-            throw new IllegalArgumentException("ERROR: You must specify the input data file and stream:topic.");
+
         }
 
-        String topic =  args[1] ;
+        String topic =  args[2] ;
         System.out.println("Publishing to topic: "+ topic);
 
         configureProducer();
-        System.out.println("Opening file " + args[0]);
-        File f = new File(args[0]);
+        System.out.println("Opening file " + args[1]);
+        File f = new File(args[1]);
         FileReader fr = new FileReader(f);
         BufferedReader reader = new BufferedReader(fr);
         String line = reader.readLine();
-        long linecount = 0L;
+        long records_processed = 0L;
 
         try {
             long startTime = System.nanoTime();
+            long last_update = 0;
+
             while (line != null) {
                 ProducerRecord<String, String> rec = new ProducerRecord<String, String>(topic, line);
 
                 // Send the record to the producer client library.
                 producer.send(rec);
-                linecount++;
+                records_processed++;
 
-                if (linecount % 1000000 == 0) {
+                // Print performance stats once per second
+                if ((Math.floor(System.nanoTime() - startTime)/1e9) > last_update)
+                {
+                    last_update ++;
                     producer.flush();
-                    long endTime = System.nanoTime();
-                    long elapsedTime = endTime - startTime;
-                    System.out.printf("Throughput = %.2f Kmsgs/sec published. Total published = %d\n", linecount / ((double) elapsedTime / 1000000000.0) / 1000, linecount);
+                    Monitor.print_status(records_processed,startTime);
                 }
-                line = reader.readLine();
             }
+
+            line = reader.readLine();
+
         } catch (Throwable throwable) {
             System.err.printf("%s", throwable.getStackTrace());
         } finally {
             producer.close();
-            System.out.println("Published " + linecount + " messages to stream.");
+            System.out.println("Published " + records_processed + " messages to stream.");
             System.out.println("Finished.");
         }
     }
