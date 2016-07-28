@@ -1,5 +1,7 @@
 package com.mapr.examples;
 
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import java.io.IOException;
 
 /**
@@ -8,6 +10,8 @@ import java.io.IOException;
  */
 public class Run {
     public static void main(String[] args) throws IOException {
+        Logger.getRootLogger().setLevel(Level.OFF);
+
         if (args.length < 1) {
             System.err.println("USAGE:\n" +
                     "\tjava -cp `mapr classpath`:./nyse-taq-streaming-1.0-jar-with-dependencies.jar com.mapr.examples.Run producer [source data file] [stream:topic]\n" +
