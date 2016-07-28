@@ -37,7 +37,15 @@ topic            partitions  logicalsize  consumers  maxlag  physicalsize
 trades           1           0            0          0       0
 ```
 
-### Step 3: Compile and package up the example programs
+### Step 3: Create the MapR-DB table
+
+Create the table that will be used to persist parsed TAQ records consumed off the stream.
+
+```
+$ maprcli table info -path /apps/taq
+```
+
+### Step 4: Compile and package up the example programs
 
 Go back to the root directory where you have saved this source code and
 compile and build the program like this:
@@ -51,7 +59,7 @@ $ mvn package
 The project create a jar with all external dependencies ( `./target/nyse-taq-streaming-1.0-jar-with-dependencies.jar` )
 
 
-### Step 4: Run the Producer
+### Step 5: Run the Producer
 
 You can install the [MapR Client](http://maprdocs.mapr.com/51/index.html#AdvancedInstallation/SettingUptheClient-client_26982445-d3e146.html) and run the application locally,
 or copy the jar file on your cluster (any node).
@@ -84,7 +92,7 @@ Sent msg number 999000
 The command-line argument `data/taqtrade20131218` refers to the source file containing the TAQ dataset to be published into the `taq:trades` MapR stream.
 
 
-### Step 5: Start the Consumer
+### Step 6: Start the Consumer
 
 In another window you can run the consumer using the following command:
 
