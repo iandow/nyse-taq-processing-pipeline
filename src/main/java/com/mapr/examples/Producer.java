@@ -65,7 +65,7 @@ public class Producer {
 
     /* Set the value for a configuration parameter.
      This configuration parameter specifies which class
-     to use to serialize the value of each message.*/
+     to use to serialize the value of each json.*/
     public static void configureProducer() {
         Properties props = new Properties();
         props.put("key.serializer",

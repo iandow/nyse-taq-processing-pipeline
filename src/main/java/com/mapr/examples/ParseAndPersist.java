@@ -6,83 +6,71 @@ import akka.actor.ActorSystem;
 import akka.actor.Props;
 import akka.actor.Inbox;
 import scala.concurrent.duration.Duration;
-import scala.concurrent.duration.FiniteDuration;
-
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import java.io.Serializable;
+import java.text.ParseException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 public class ParseAndPersist {
-    public static class Greet implements Serializable {}
-    public static class WhoToGreet implements Serializable {
-        public final String who;
-        public WhoToGreet(String who) {
-            this.who = who;
-        }
-    }
-    public static class Greeting implements Serializable {
-        public final String message;
-        public Greeting(String message) {
-            this.message = message;
+    public static int count = 0;
+    public static class Status implements Serializable {}
+    public static class ParseMe implements Serializable {
+        public final String rawtext;
+        public ParseMe(String rawtext) {
+            this.rawtext = rawtext;
         }
     }
 
-    public static class Greeter extends UntypedActor {
-        String greeting = "";
+    public static class Parser extends UntypedActor {
+        JSONObject json = new JSONObject();
 
         public void onReceive(Object message) {
-            if (message instanceof WhoToGreet)
-                greeting = "hello, " + ((WhoToGreet) message).who;
-
-            else if (message instanceof Greet)
-                // Send the current greeting back to the sender
-                getSender().tell(new Greeting(greeting), getSelf());
-
+            if (message instanceof Status) {
+                System.out.println("count = " + count);
+            }
+            if (message instanceof ParseMe)
+                try {
+                    json = doParse(((ParseMe) message).rawtext);
+                    count++;
+                } catch (ParseException e) {
+                    System.err.printf("%s", e.getStackTrace());
+                }
             else unhandled(message);
         }
-    }
 
-    public static void main2(String[] args) {
-        try {
-            // Create the 'helloakka' actor system
-            final ActorSystem system = ActorSystem.create("helloakka");
+        private static JSONObject doParse(String rawtext) throws ParseException {
+            if (rawtext.length() < 71) {
+                throw new ParseException("Expected line to be at least 71 characters, but got " + rawtext.length(), rawtext.length());
+            }
 
-            // Create the 'greeter' actor
-            final ActorRef greeter = system.actorOf(Props.create(Greeter.class), "greeter");
+            JSONObject json = new JSONObject();
+            json.put("date", rawtext.substring(0, 9));
+            json.put("exchange", rawtext.substring(9, 10));
+            json.put("symbol root", rawtext.substring(10, 16).trim());
+            json.put("symbol suffix", rawtext.substring(16, 26).trim());
+            json.put("saleCondition", rawtext.substring(26, 30).trim());
+            json.put("tradeVolume", rawtext.substring(30, 39));
+            json.put("tradePrice", rawtext.substring(39, 46) + "." + rawtext.substring(46, 50));
+            json.put("tradeStopStockIndicator", rawtext.substring(50, 51));
+            json.put("tradeCorrectionIndicator", rawtext.substring(51, 53));
+            json.put("tradeSequenceNumber", rawtext.substring(53, 69));
+            json.put("tradeSource", rawtext.substring(69, 70));
+            json.put("tradeReportingFacility", rawtext.substring(70, 71));
+            if (rawtext.length() >= 74) {
+                json.put("sender", rawtext.substring(71, 75));
 
-            // Create the "actor-in-a-box"
-            final Inbox inbox = Inbox.create(system);
-
-            // Tell the 'greeter' to change its 'greeting' message
-            greeter.tell(new WhoToGreet("akka"), ActorRef.noSender());
-
-            // Ask the 'greeter for the latest 'greeting'
-            // Reply should go to the "actor-in-a-box"
-            inbox.send(greeter, new Greet());
-
-            // Wait 5 seconds for the reply with the 'greeting' message
-            final Greeting greeting1 = (Greeting) inbox.receive(Duration.create(5, TimeUnit.SECONDS));
-            System.out.println("Greeting: " + greeting1.message);
-
-            // Change the greeting and ask for it again
-            greeter.tell(new WhoToGreet("typesafe"), ActorRef.noSender());
-            inbox.send(greeter, new Greet());
-            final Greeting greeting2 = (Greeting) inbox.receive(Duration.create(5, TimeUnit.SECONDS));
-            System.out.println("Greeting: " + greeting2.message);
-
-            // after zero seconds, send a Greet message every second to the greeter with a sender of the GreetPrinter
-            final ActorRef greetPrinter = system.actorOf(Props.create(GreetPrinter.class));
-            system.scheduler().schedule(Duration.Zero(), Duration.create(1, TimeUnit.SECONDS), greeter, new Greet(), system.dispatcher(), greetPrinter);
-        } catch (TimeoutException ex) {
-            System.out.println("Got a timeout waiting for reply from an actor");
-            ex.printStackTrace();
+                JSONArray receiver_list = new JSONArray();
+                int i = 0;
+                while (rawtext.length() >= 78 + i) {
+                    receiver_list.add(rawtext.substring(75 + i, 79 + i));
+                    i += 4;
+                }
+                json.put("receivers", receiver_list);
+            }
+            return json;
         }
     }
 
-    public static class GreetPrinter extends UntypedActor {
-        public void onReceive(Object message) {
-            if (message instanceof Greeting)
-                System.out.println(((Greeting) message).message);
-        }
-    }
 }

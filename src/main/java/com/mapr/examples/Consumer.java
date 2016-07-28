@@ -1,6 +1,11 @@
 package com.mapr.examples;/* Copyright (c) 2009 & onwards. MapR Tech, Inc., All rights reserved */
 
 import java.text.ParseException;
+
+import akka.actor.ActorRef;
+import akka.actor.ActorSystem;
+import akka.actor.Inbox;
+import akka.actor.Props;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -9,44 +14,54 @@ import org.json.simple.JSONObject;
 import java.util.*;
 
 public class Consumer {
+    private static final ActorSystem system = ActorSystem.create("MyActorSystem");
+    private static final ActorRef parser = system.actorOf(Props.create(ParseAndPersist.Parser.class), "parser");
 
     // Declare a new consumer.
     public static KafkaConsumer consumer;
 
-    private static JSONObject parse(String record) throws ParseException {
-        if (record.length() < 71) {
-            throw new ParseException("Expected line to be at least 71 characters, but got " + record.length(), record.length());
-        }
+    private static void parse(String record) throws ParseException {
+//        if (record.length() < 71) {
+//            throw new ParseException("Expected line to be at least 71 characters, but got " + record.length(), record.length());
+//        }
+//
+//        JSONObject trade_info = new JSONObject();
+//        trade_info.put("date", record.substring(0, 9));
+//        trade_info.put("exchange", record.substring(9, 10));
+//        trade_info.put("symbol root", record.substring(10, 16).trim());
+//        trade_info.put("symbol suffix", record.substring(16, 26).trim());
+//        trade_info.put("saleCondition", record.substring(26, 30).trim());
+//        trade_info.put("tradeVolume", record.substring(30, 39));
+//        trade_info.put("tradePrice", record.substring(39, 46) + "." + record.substring(46, 50));
+//        trade_info.put("tradeStopStockIndicator", record.substring(50, 51));
+//        trade_info.put("tradeCorrectionIndicator", record.substring(51, 53));
+//        trade_info.put("tradeSequenceNumber", record.substring(53, 69));
+//        trade_info.put("tradeSource", record.substring(69, 70));
+//        trade_info.put("tradeReportingFacility", record.substring(70, 71));
+//        if (record.length() >= 74) {
+//            trade_info.put("sender", record.substring(71, 75));
+//
+//            JSONArray receiver_list = new JSONArray();
+//            int i = 0;
+//            while (record.length() >= 78 + i) {
+//                receiver_list.add(record.substring(75 + i, 79 + i));
+//                i += 4;
+//            }
+//            trade_info.put("receivers", receiver_list);
+//        }
 
-        JSONObject trade_info = new JSONObject();
-        trade_info.put("date", record.substring(0, 9));
-        trade_info.put("exchange", record.substring(9, 10));
-        trade_info.put("symbol root", record.substring(10, 16).trim());
-        trade_info.put("symbol suffix", record.substring(16, 26).trim());
-        trade_info.put("saleCondition", record.substring(26, 30).trim());
-        trade_info.put("tradeVolume", record.substring(30, 39));
-        trade_info.put("tradePrice", record.substring(39, 46) + "." + record.substring(46, 50));
-        trade_info.put("tradeStopStockIndicator", record.substring(50, 51));
-        trade_info.put("tradeCorrectionIndicator", record.substring(51, 53));
-        trade_info.put("tradeSequenceNumber", record.substring(53, 69));
-        trade_info.put("tradeSource", record.substring(69, 70));
-        trade_info.put("tradeReportingFacility", record.substring(70, 71));
-        if (record.length() >= 74) {
-            trade_info.put("sender", record.substring(71, 75));
+        // test Parser akka actor:
+        // Tell the 'parser' to work on some json
+        parser.tell(new ParseAndPersist.ParseMe(record), ActorRef.noSender());
 
-            JSONArray receiver_list = new JSONArray();
-            int i = 0;
-            while (record.length() >= 78 + i) {
-                receiver_list.add(record.substring(75 + i, 79 + i));
-                i += 4;
-            }
-            trade_info.put("receivers", receiver_list);
-        }
-        return trade_info;
+
+//        return trade_info;
 
     }
 
     public static void main(String[] args) {
+        final Inbox inbox = Inbox.create(system);
+
         Runtime runtime = Runtime.getRuntime();
         if (args.length < 2) {
             System.err.println("ERROR: You must specify a stream:topic to consume data from.");
@@ -68,7 +83,7 @@ public class Consumer {
         consumer.subscribe(topics);
 
         List<String> buffer = new ArrayList<>();
-        long pollTimeOut = 10000;  // milliseconds
+        long pollTimeOut = 100;  // milliseconds
         long records_processed = 0L;
         final int minBatchSize = 200;
 
@@ -101,6 +116,9 @@ public class Consumer {
 
                     // Print performance stats once per second
                     if ((Math.floor(System.nanoTime() - startTime)/1e9) > last_update) {
+                        // Ask the actor to print status
+                        inbox.send(parser, new ParseAndPersist.Status());
+
                         last_update++;
                         Monitor.print_status(records_processed, startTime);
                     }
@@ -127,7 +145,7 @@ public class Consumer {
         props.put("group.id", "mapr-workshop");
         props.put("key.deserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer");
-        //  which class to use to deserialize the value of each message
+        //  which class to use to deserialize the value of each json
         props.put("value.deserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer");
 
