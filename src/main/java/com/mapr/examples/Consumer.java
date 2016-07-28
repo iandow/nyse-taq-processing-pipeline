@@ -84,7 +84,7 @@ public class Consumer {
                 // Request unread messages from the topic.
                 ConsumerRecords<String, String> records = consumer.poll(pollTimeOut);
                 if (records.count() == 0) {
-                    System.out.println("No messages after " + pollTimeOut/1000 + " second wait.");
+                    System.out.println("No messages after " + pollTimeOut/1000 + " second wait. Total published = " + records_processed);
                 } else {
 
                     for (ConsumerRecord<String, String> record : records) {
@@ -93,7 +93,6 @@ public class Consumer {
                     if (buffer.size() >= minBatchSize) {
                         for (String msg : buffer) {
                             parse(msg);
-                            //TODO: insertIntoDb();
                         }
                         consumer.commitSync();
                         buffer.clear();
