@@ -4,47 +4,17 @@ import java.text.ParseException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Consumer {
 
     // Declare a new consumer.
     public static KafkaConsumer consumer;
-
-    private static JSONObject parse(String record) throws ParseException {
-        if (record.length() < 71) {
-            throw new ParseException("Expected line to be at least 71 characters, but got " + record.length(), record.length());
-        }
-
-        JSONObject trade_info = new JSONObject();
-        trade_info.put("date", record.substring(0, 9));
-        trade_info.put("exchange", record.substring(9, 10));
-        trade_info.put("symbol root", record.substring(10, 16).trim());
-        trade_info.put("symbol suffix", record.substring(16, 26).trim());
-        trade_info.put("saleCondition", record.substring(26, 30).trim());
-        trade_info.put("tradeVolume", record.substring(30, 39));
-        trade_info.put("tradePrice", record.substring(39, 46) + "." + record.substring(46, 50));
-        trade_info.put("tradeStopStockIndicator", record.substring(50, 51));
-        trade_info.put("tradeCorrectionIndicator", record.substring(51, 53));
-        trade_info.put("tradeSequenceNumber", record.substring(53, 69));
-        trade_info.put("tradeSource", record.substring(69, 70));
-        trade_info.put("tradeReportingFacility", record.substring(70, 71));
-        if (record.length() >= 74) {
-            trade_info.put("sender", record.substring(71, 75));
-
-            JSONArray receiver_list = new JSONArray();
-            int i = 0;
-            while (record.length() >= 78 + i) {
-                receiver_list.add(record.substring(75 + i, 79 + i));
-                i += 4;
-            }
-            trade_info.put("receivers", receiver_list);
-        }
-        return trade_info;
-
-    }
 
     public static void main(String[] args) {
         Runtime runtime = Runtime.getRuntime();
@@ -67,7 +37,13 @@ public class Consumer {
         // Subscribe to the topic.
         consumer.subscribe(topics);
 
+        int concurrencyFactor = 5;
+        int poolSize = concurrencyFactor * Runtime.getRuntime().availableProcessors();
+        ExecutorService es = Executors.newFixedThreadPool(poolSize);
+        CompletionService<Boolean> completionService = new ExecutorCompletionService(es);
+
         List<String> buffer = new ArrayList<>();
+        List<ConsumerRecord> recordList = new ArrayList();
         long pollTimeOut = 10000;  // milliseconds
         long records_processed = 0L;
         final int minBatchSize = 200;
@@ -88,21 +64,42 @@ public class Consumer {
                 } else {
 
                     for (ConsumerRecord<String, String> record : records) {
-                        buffer.add(record.value());
-                    }
-                    if (buffer.size() >= minBatchSize) {
-                        for (String msg : buffer) {
-                            parse(msg);
+                        recordList.add(record);
+                        //collect records
+                        if (recordList.size() == poolSize) {
+                            int taskCount = poolSize;
+                            //distribute these messages across the workers
+                            recordList.forEach(recordTobeProcess -> completionService.submit(new Worker(recordTobeProcess)));
+                            //collect the processing result
+                            List<Boolean> resultList = new ArrayList();
+                            while (taskCount > 0) {
+                                try {
+                                    Future<Boolean> futureResult = completionService.poll(1, TimeUnit.SECONDS);
+                                    if (futureResult != null) {
+                                        boolean result = futureResult.get().booleanValue();
+                                        resultList.add(result);
+                                        taskCount = taskCount - 1;
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            // verify all result are ok then commit it otherwise reprocess it.
+                            Map<TopicPartition, OffsetAndMetadata> commitOffset =
+                                    Collections.singletonMap(
+                                            new TopicPartition(record.topic(), record.partition()),
+                                            new OffsetAndMetadata(record.offset() + 1));
+                            consumer.commitSync(commitOffset);
+                            //clear all commit records from list
+                            recordList.clear();
                         }
-                        consumer.commitSync();
-                        buffer.clear();
                     }
                     records_processed += records.count();
 
                     // Print performance stats once per second
                     if ((Math.floor(System.nanoTime() - startTime)/1e9) > last_update) {
                         last_update++;
-                        Monitor.print_status(records_processed, startTime);
+                        Monitor.print_status(records_processed, poolSize, startTime);
                     }
 
                 }
@@ -125,6 +122,7 @@ public class Consumer {
         Properties props = new Properties();
         props.put("enable.auto.commit","false");
         props.put("group.id", "mapr-workshop");
+        props.put("client.id", UUID.randomUUID().toString());
         props.put("key.deserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer");
         //  which class to use to deserialize the value of each message

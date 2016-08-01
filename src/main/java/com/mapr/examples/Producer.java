@@ -49,7 +49,7 @@ public class Producer {
                 {
                     last_update ++;
                     producer.flush();
-                    Monitor.print_status(records_processed,startTime);
+                    Monitor.print_status(records_processed, 1, startTime);
                 }
                 line = reader.readLine();
             }
