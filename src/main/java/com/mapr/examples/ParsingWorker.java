@@ -10,28 +10,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
-public class Worker implements Callable<Boolean> {
+public class ParsingWorker implements Callable<Boolean> {
 
     ConsumerRecord record;
+    static long records_processed = 0L;
 
-    public Worker(ConsumerRecord record) {
+    public ParsingWorker(ConsumerRecord record) {
         this.record = record;
     }
 
     public Boolean call() {
 
-        Map<String, Object> data = new HashMap<>();
         try {
-            // processing steps would we here
-            data.put("partition", record.partition());
-            data.put("offset", record.offset());
-            data.put("value", record.value());
-
+            // processing steps go here
             parse((String)record.value());
-
-            // processing taking one minute
-//            Thread.sleep(1*1000);
-//            System.out.println("Processing Thread-" + Thread.currentThread().getName() + " data:  " + data);
+            records_processed ++;  //TODO: I don't think this is thread safe.
             return Boolean.TRUE;
         } catch (Exception e) {
             e.printStackTrace();

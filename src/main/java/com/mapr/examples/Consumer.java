@@ -1,13 +1,9 @@
 package com.mapr.examples;/* Copyright (c) 2009 & onwards. MapR Tech, Inc., All rights reserved */
 
-import java.text.ParseException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
+
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -17,7 +13,6 @@ public class Consumer {
     public static KafkaConsumer consumer;
 
     public static void main(String[] args) {
-        Runtime runtime = Runtime.getRuntime();
         if (args.length < 2) {
             System.err.println("ERROR: You must specify a stream:topic to consume data from.");
             System.err.println("USAGE:\n" +
@@ -37,16 +32,17 @@ public class Consumer {
         // Subscribe to the topic.
         consumer.subscribe(topics);
 
-        int concurrencyFactor = 5;
+        int concurrencyFactor = 1;
         int poolSize = concurrencyFactor * Runtime.getRuntime().availableProcessors();
-        ExecutorService es = Executors.newFixedThreadPool(poolSize);
-        CompletionService<Boolean> completionService = new ExecutorCompletionService(es);
 
-        List<String> buffer = new ArrayList<>();
+        ExecutorService es = Executors.newFixedThreadPool(poolSize);
+        CompletionService<Boolean> parserService = new ExecutorCompletionService(es);
+
         List<ConsumerRecord> recordList = new ArrayList();
         long pollTimeOut = 10000;  // milliseconds
-        long records_processed = 0L;
-        final int minBatchSize = 200;
+        //collect the processing result
+        List<Boolean> resultList = new ArrayList();
+
 
         // https://kafka.apache.org/090/javadoc/org/apache/kafka/clients/consumer/KafkaConsumer.html
         // This paradigm is an "at least once delivery" guarantee.
@@ -60,7 +56,7 @@ public class Consumer {
                 // Request unread messages from the topic.
                 ConsumerRecords<String, String> records = consumer.poll(pollTimeOut);
                 if (records.count() == 0) {
-                    System.out.println("No messages after " + pollTimeOut/1000 + " second wait. Total published = " + records_processed);
+                    System.out.println("No messages after " + pollTimeOut/1000 + " second wait. Total published = " + resultList.size());
                 } else {
 
                     for (ConsumerRecord<String, String> record : records) {
@@ -69,12 +65,10 @@ public class Consumer {
                         if (recordList.size() == poolSize) {
                             int taskCount = poolSize;
                             //distribute these messages across the workers
-                            recordList.forEach(recordTobeProcess -> completionService.submit(new Worker(recordTobeProcess)));
-                            //collect the processing result
-                            List<Boolean> resultList = new ArrayList();
+                            recordList.forEach(recordToProcess -> parserService.submit(new ParsingWorker(recordToProcess)));
                             while (taskCount > 0) {
                                 try {
-                                    Future<Boolean> futureResult = completionService.poll(1, TimeUnit.SECONDS);
+                                    Future<Boolean> futureResult = parserService.poll(100, TimeUnit.MILLISECONDS);
                                     if (futureResult != null) {
                                         boolean result = futureResult.get().booleanValue();
                                         resultList.add(result);
@@ -84,22 +78,23 @@ public class Consumer {
                                     e.printStackTrace();
                                 }
                             }
+                            // TODO: uncomment this section if we want to avoid loosing messages
                             // verify all result are ok then commit it otherwise reprocess it.
-                            Map<TopicPartition, OffsetAndMetadata> commitOffset =
-                                    Collections.singletonMap(
-                                            new TopicPartition(record.topic(), record.partition()),
-                                            new OffsetAndMetadata(record.offset() + 1));
-                            consumer.commitSync(commitOffset);
+//                            Map<TopicPartition, OffsetAndMetadata> commitOffset =
+//                                    Collections.singletonMap(
+//                                            new TopicPartition(record.topic(), record.partition()),
+//                                            new OffsetAndMetadata(record.offset() + 1));
+                            consumer.commitSync();
                             //clear all commit records from list
                             recordList.clear();
                         }
+
                     }
-                    records_processed += records.count();
 
                     // Print performance stats once per second
                     if ((Math.floor(System.nanoTime() - startTime)/1e9) > last_update) {
                         last_update++;
-                        Monitor.print_status(records_processed, poolSize, startTime);
+                        Monitor.print_status(resultList.size(), poolSize, startTime);
                     }
 
                 }
@@ -109,7 +104,7 @@ public class Consumer {
             System.err.printf("%s", throwable.getStackTrace());
         } finally {
             consumer.close();
-            System.out.println("Consumed " + records_processed + " messages from stream.");
+            System.out.println("Consumed " + resultList.size() + " messages from stream.");
             System.out.println("Finished.");
         }
 
